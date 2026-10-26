@@ -1,0 +1,143 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Jiaowei <wei.jiao@guanwu.com>
+
+# Release pipeline: one archive per platform is attached to the release, then
+# one NuGet package is assembled from all four installation prefixes and pushed
+# to GitHub Packages. The tag, without an optional leading "v", is the version
+# used in every package name.
+name: release
+
+on:
+  release:
+    types:
+      - created
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag to build for
+        required: true
+
+permissions:
+  contents: write
+
+env:
+  TAG: ${{ inputs.tag || github.event.release.tag_name }}
+
+jobs:
+  build:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { runner: windows-2022, os: windows, arch: x64, configure: "-A x64", cli: build/Release/eportskf.exe }
+          - { runner: windows-2022, os: windows, arch: arm64, configure: "-A arm64", cli: build/Release/eportskf.exe }
+          - { runner: ubuntu-22.04, os: linux, arch: x64, configure: "-DCMAKE_BUILD_TYPE=Release", cli: build/eportskf }
+          - { runner: ubuntu-22.04, os: linux, arch: arm64, configure: "-DCMAKE_BUILD_TYPE=Release -DCMAKE_SYSTEM_NAME=Linux -DCMAKE_SYSTEM_PROCESSOR=aarch64 -DCMAKE_C_COMPILER=aarch64-linux-gnu-gcc", cli: build/eportskf }
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+      - name: Resolve version
+        shell: bash
+        run: echo "VERSION=${TAG#v}" >> "$GITHUB_ENV"
+      # The Linux arm64 build runs on an x64 runner, so the target system and
+      # the cross compiler are passed to CMake explicitly.
+      - name: Install cross compiler
+        if: runner.os == 'Linux' && matrix.arch == 'arm64'
+        run: |
+          sudo apt-get update
+          sudo apt-get install --yes gcc-aarch64-linux-gnu
+      - name: Configure
+        shell: bash
+        run: cmake -S . -B build ${{ matrix.configure }} -DEPORTSKF_VERSION="$VERSION"
+      - name: Build
+        shell: bash
+        run: cmake --build build --config Release --parallel
+      - name: Check CLI
+        if: matrix.arch == 'x64'
+        shell: bash
+        run: |
+          "${{ matrix.cli }}" --help
+          "${{ matrix.cli }}" list
+      - name: Stage installation tree
+        shell: bash
+        run: cmake --install build --config Release --prefix "stage/eportskf-$VERSION-${{ matrix.os }}-${{ matrix.arch }}"
+      - name: Archive installation tree
+        shell: bash
+        run: |
+          set -euo pipefail
+          base="eportskf-$VERSION-${{ matrix.os }}-${{ matrix.arch }}"
+          mkdir -p dist
+          if [[ "${RUNNER_OS}" == Windows ]]; then
+            (cd "stage/$base" && 7z a -tzip -bd "$OLDPWD/dist/$base.zip" . > /dev/null)
+          else
+            (cd "stage/$base" && tar -czf "$OLDPWD/dist/$base.tar.gz" .)
+          fi
+      - uses: actions/upload-artifact@v7
+        with:
+          name: eportskf-${{ matrix.os }}-${{ matrix.arch }}
+          path: dist/*
+          if-no-files-found: error
+
+  attach:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          path: dist
+          pattern: eportskf-*
+          merge-multiple: true
+      - name: Attach packages to the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "$TAG" dist/* --clobber
+
+  nuget:
+    needs: build
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+      packages: write
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ inputs.tag || github.event.release.tag_name }}
+      - uses: actions/setup-dotnet@v6
+      - uses: actions/download-artifact@v8
+        with:
+          path: artifacts
+          pattern: eportskf-*
+          merge-multiple: true
+      - name: Build native package
+        run: |
+          set -euo pipefail
+          version="${TAG#v}"
+          stage="$RUNNER_TEMP/eportskf-package"
+          mkdir -p "$stage/build/native"
+          cp LICENSE README.md "$stage/"
+          cp packaging/eportskf.props "$stage/build/native/"
+          for target in windows-x64 windows-arm64 linux-x64 linux-arm64; do
+            rid="${target/windows/win}"
+            mkdir -p "$stage/$rid"
+            archive="artifacts/eportskf-$version-$target"
+            if [[ "$target" == windows-* ]]; then
+              unzip -q "$archive.zip" -d "$stage/$rid"
+            else
+              tar -xzf "$archive.tar.gz" -C "$stage/$rid"
+            fi
+          done
+          dotnet pack packaging/eportskf.pack.csproj \
+            --output "$RUNNER_TEMP/nupkg" \
+            -p:EportskfStage="$stage" \
+            -p:EportskfVersion="$version" \
+            -p:RepositoryUrl="$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" \
+            -p:RepositoryCommit="$GITHUB_SHA"
+      - name: Push native package
+        env:
+          NUGET_API_KEY: ${{ github.token }}
+        run: dotnet nuget push "$RUNNER_TEMP/nupkg"/*.nupkg --source "https://nuget.pkg.github.com/${GITHUB_REPOSITORY_OWNER,,}/index.json" --skip-duplicate

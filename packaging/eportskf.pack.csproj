@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <!-- SPDX-License-Identifier: AGPL-3.0-only -->
+  <!-- Copyright (C) 2026 Jiaowei <wei.jiao@guanwu.com> -->
+  <!-- The package content is the staged installation prefixes, so this project
+       only drives nuget pack through the nuspec; it compiles nothing. -->
+  <PropertyGroup>
+    <TargetFramework>netstandard2.0</TargetFramework>
+    <EnableDefaultItems>false</EnableDefaultItems>
+    <IncludeBuildOutput>false</IncludeBuildOutput>
+    <SuppressDependenciesWhenPacking>true</SuppressDependenciesWhenPacking>
+    <NuspecFile>$(MSBuildThisFileDirectory)eportskf.nuspec</NuspecFile>
+    <NuspecBasePath>$(EportskfStage)</NuspecBasePath>
+    <NuspecProperties>version=$(EportskfVersion);repositoryUrl=$(RepositoryUrl);repositoryCommit=$(RepositoryCommit)</NuspecProperties>
+    <NoWarn>NU5100;NU5128</NoWarn>
+  </PropertyGroup>
+</Project>

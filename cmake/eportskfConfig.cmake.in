@@ -1,0 +1,9 @@
+# SPDX-License-Identifier: AGPL-3.0-only
+# Copyright (C) 2026 Jiaowei <wei.jiao@guanwu.com>
+# Configuration installed beside the library. The imported targets
+# eportskf::eportskf and eportskf::eportskf_static, with their include
+# directories and platform link libraries, come from the exported target file.
+@PACKAGE_INIT@
+
+include("${CMAKE_CURRENT_LIST_DIR}/eportskfTargets.cmake")
+check_required_components(eportskf)

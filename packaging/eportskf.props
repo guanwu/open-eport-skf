@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="utf-8"?>
+<Project xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <!-- SPDX-License-Identifier: AGPL-3.0-only -->
+  <!-- Copyright (C) 2026 Jiaowei <wei.jiao@guanwu.com> -->
+  <!-- Selects the matching win-<arch> prefix from the MSBuild platform. The
+       props add include and library directories only; the consumer decides
+       whether to link the shared or the static library. -->
+  <PropertyGroup>
+    <EportskfPackageRoot>$(MSBuildThisFileDirectory)..\..\</EportskfPackageRoot>
+    <EportskfRid Condition="'$(Platform)' == 'x64'">win-x64</EportskfRid>
+    <EportskfRid Condition="'$(Platform)' == 'ARM64'">win-arm64</EportskfRid>
+  </PropertyGroup>
+  <ItemDefinitionGroup>
+    <ClCompile>
+      <AdditionalIncludeDirectories>$(EportskfPackageRoot)$(EportskfRid)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+    </ClCompile>
+    <Link>
+      <AdditionalLibraryDirectories>$(EportskfPackageRoot)$(EportskfRid)\lib;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+    </Link>
+  </ItemDefinitionGroup>
+</Project>

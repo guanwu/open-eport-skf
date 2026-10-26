@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- SPDX-License-Identifier: AGPL-3.0-only -->
+<!-- Copyright (C) 2026 Jiaowei <wei.jiao@guanwu.com> -->
+<package xmlns="http://schemas.microsoft.com/packaging/2013/05/nuspec.xsd">
+  <metadata>
+    <id>eportskf</id>
+    <version>$version$</version>
+    <authors>Jiaowei</authors>
+    <copyright>Copyright (C) 2026 Jiaowei &lt;wei.jiao@guanwu.com&gt;</copyright>
+    <description>Native library and command-line tool for China ePort smart cards and USB tokens: certificate identity, PIN verification and SM2/RSA signing.</description>
+    <license type="expression">AGPL-3.0-only</license>
+    <projectUrl>$repositoryUrl$</projectUrl>
+    <repository type="git" url="$repositoryUrl$" commit="$repositoryCommit$" />
+    <tags>eport smart-card pcsc usb-token sm2 rsa native</tags>
+    <readme>README.md</readme>
+  </metadata>
+  <files>
+    <file src="**/*" />
+  </files>
+</package>
